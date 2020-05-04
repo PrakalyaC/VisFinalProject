@@ -1,0 +1,743 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="css/style.css">
+<script src="https://d3js.org/d3.v4.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3-tip/0.7.1/d3-tip.min.js"></script>
+<script src="js/topojson.v1.min.js"></script>
+<script src="https://d3js.org/d3-scale-chromatic.v1.min.js"></script>
+<script src="js/us-states.json"></script>
+<script src="food_data.js"></script>
+
+</head>
+<body>
+
+<div id="header">
+  <h1> Food Recall by the FDA: A Visualization </h1>
+  <h5> Created by: Prakalya Chandrasekar </h5>
+</div>
+
+<div id = "wrapper1">
+  <div id="legend"> </div>
+  <div id = "map" > </div>
+  <div id="info"> 
+  <p> Every year, the U.S. Food and Drug Administration (FDA) recalls thousands of products. This occurs when products are contaminated, mislabeled, or in general, harmful to the consumer. Recalling a product, which means taking it off the market, stops the sale of the possibly dangerous item, and allows the company to potentially fix the issue, or terminate the item. 
+  
+
+  </p> <br> 
+  <p> There are 3 different kinds of classifications of food recalls: </p>
+  <ul>
+    <li> Class I - Products that can cause serious injury or death </li>
+    <li> Class II - Products that might cause a temporary injury or illness </li>
+    <li> Class III - Products unlikely to cause sickness, but violate FDA regulations </li>
+  </ul> 
+  <br>
+  <p> Click on the buttons below to see how many recalls in each state: </p>
+  <button onmousedown="totalbutton(event)" id="totalbutton"> Total </button>
+  <button onmousedown="class1button(event)" id = "button1"> Class I  </button>
+  <button onmousedown="class2button(event)" id = "button2"> Class II </button>
+  <button onmousedown="class3button(event)" id= "button3"> Class III </button>
+      </div>
+  
+</div>
+<button onmousedown="clearbutton(event)" id= "button4"> Clear </button>
+<hr> 
+<div id = "wrapper2">
+  <div id="classpie">
+    <div id="pie"> </div>
+  </div>
+  <div id="company"></div>
+  <div id ="company_names"> </div>
+</div>
+
+
+
+<script type="text/javascript">
+
+var mapwidth = 875;
+var mapheight = 500;
+
+
+var projection = d3.geoAlbersUsa()
+                .translate([mapwidth/2, mapheight/2])    
+                .scale([1000]);          
+        
+var path = d3.geoPath()               
+          .projection(projection);  
+
+
+var regex = /[!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~]/g;
+
+
+for (var i = 0; i < states.features.length; i++)  {
+  states.features[i].total = 0; 
+  states.features[i].class1 = 0;
+  states.features[i].class2 = 0;
+  states.features[i].class3 = 0;
+  states.features[i].companies = [];
+  states.features[i].classifications = []
+}
+
+
+for (x in food.results) {
+    food.results[x].recalling_firm = removePunctuation(food.results[x].recalling_firm)
+}
+
+for (x in food.results) {
+    for (y in states.features) {
+        if (food.results[x].state == states.features[y].id) {
+            states.features[y].companies.push(food.results[x].recalling_firm);
+            states.features[y].classifications.push(food.results[x].classification);
+            states.features[y].total += 1;
+            if (food.results[x].classification == "Class I") {
+              states.features[y].class1 += 1;
+            }
+            else if (food.results[x].classification == "Class II") {
+              states.features[y].class2 += 1;
+            }
+            else {
+              states.features[y].class3 += 1;
+            }
+        }
+    }
+}
+
+var totalDataArray = []
+for (y in states.features) {
+  totalDataArray[y] = states.features[y].total
+}
+
+changemap('#d7e3ed', '#4f6ea2', totalDataArray, "total")
+
+ 
+
+
+
+function clearbutton(event) {
+  document.getElementById("pie").innerHTML = "";
+  document.getElementById("company").innerHTML = "";
+  document.getElementById("company_names").innerHTML = "";
+  changemap('#d7e3ed', '#4f6ea2', totalDataArray, "total")
+}
+
+function removePunctuation(string) {
+  return string.replace(regex, '');
+}
+
+
+function secondvis(d) {
+  companies(d.companies, d.classifications, d.properties.name)
+  showclasspie(d.properties.name, d.class1, d.class2, d.class3) 
+  var hr = document.createElement("hr");
+  document.getElementById("pie").appendChild(hr);
+  var hr2 = document.createElement("hr");
+  document.getElementById("company").appendChild(hr2);
+  
+  
+  showcompanies(d.companies, d.properties.name)
+
+
+
+}
+
+
+
+function findmaxindices(data) {
+  
+  var max_indices = []
+
+  var curr_max = 0
+  for (x in data) {
+    if (data[x].class1 + data[x].class2 + data[x].class3 == curr_max) {
+      max_indices.push(x) 
+    }
+    else if(data[x].class1 + data[x].class2 + data[x].class3 > curr_max){
+      max_indices = [x]
+      curr_max = data[x].class1 + data[x].class2 + data[x].class3
+    }
+  }
+
+  return max_indices
+}
+
+function companies(companies, classifications, state) {
+  
+  company_data = []
+  for (x in companies) {
+    var found = false;
+    for (y in company_data) {
+      if (company_data[y].name == companies[x]) {
+        found = true;
+        if (classifications[x] == "Class I") {
+          company_data[y].class1 += 1;
+        }
+        else if (classifications[x] == "Class II") {
+          company_data[y].class2 += 1;
+        }
+        else {
+          company_data[y].class3 += 1; 
+        }
+        break;
+      }
+    }
+    if (found == false) {
+      if (classifications[x] == "Class I") {
+        company_data.push({name: companies[x], class1: 1, class2: 0, class3: 0})
+      }
+      else if (classifications[x] == "Class II") {
+        company_data.push({name: companies[x], class1: 0, class2: 1, class3: 0})
+      }
+      else {
+        company_data.push({name: companies[x], class1: 0, class2: 0, class3: 1})
+      }
+      
+    }
+  }
+
+  top5 = []
+  while (top5.length < 5) {
+    var max_indices = findmaxindices(company_data)
+
+    for (x in max_indices) {
+      top5.push(company_data[max_indices[x]])
+    }
+    for (x in max_indices) {
+      company_data.splice(max_indices[x], 1)
+    }
+    if (company_data.length == 0) {
+      break;
+    }
+  }
+
+
+var initStackedBarChart = {
+  draw: function(config) {
+    me = this,
+    domEle = config.element,
+    stackKey = config.key,
+    data = config.data,
+    margin = {top: 20, right: 20, bottom: 30, left: 50},
+    width = 650 - margin.left - margin.right,
+    height = 275 - margin.top - margin.bottom,
+    xScale = d3.scaleBand().range([0, width]).padding(0.1),
+    yScale = d3.scaleLinear().range([height, 0]),
+    color = d3.scaleOrdinal(["#a12d1c", "#d76050", "#798ba1"]),
+    xAxis = d3.axisBottom(xScale),
+    yAxis =  d3.axisLeft(yScale),
+  tip = d3.tip()
+    .attr('class', 'd3-tip')
+  .offset([-5, 0])
+  .html(function(d) {return d[1] - d[0]}),
+
+ 
+
+    svg = d3.select("#company").append("svg")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.top + margin.bottom)
+        .append("g")
+        .attr("transform", "translate(" + margin.left + "," + margin.top + ")")
+        
+ svg.call(tip); 
+    var stack = d3.stack()
+      .keys(stackKey)
+      .order(d3.stackOrderNone)
+      .offset(d3.stackOffsetNone);
+  
+    var layers= stack(data);
+      xScale.domain(data.map(function(d) { return d.name; }));
+      yScale.domain([0, d3.max(layers[layers.length - 1], function(d) {  return d[0] + 2; }) ]).nice();
+
+    var layer = svg.selectAll(".layer")
+      .data(layers)
+      .enter().append("g")
+      .attr("class", "layer")
+      .style("fill", function(d, i) { return color(i); })
+     
+
+      layer.selectAll("rect")
+        .data(function(d) { return d; })
+      .enter().append("rect")
+        .attr("x", function(d) { return xScale(d.data.name); })
+        .attr("y", function(d) { return yScale(d[1]); })
+        .attr("height", function(d) { return yScale(d[0]) - yScale(d[1]); })
+        .attr("width", xScale.bandwidth())
+         .on('mouseover', tip.show)
+        .on('mouseout', tip.hide);
+
+      svg.append("g")
+      .attr("class", "axis axis--x")
+      .attr("transform", "translate(0," + (height+5) + ")")
+      .call(xAxis);
+
+      svg.append("g")
+      .attr("class", "axis axis--y")
+      .attr("transform", "translate(0,0)")
+      .call(yAxis);   
+
+      svg.append("text")
+     .text("Companies with Most Recalls in " + state)
+     .style("text-anchor", "middle")
+     .style("font-family", "Trebuchet MS,Lucida Grande,Lucida Sans Unicode,Lucida Sans,Tahoma,sans-serif")
+     .style("font-size", "13px")
+     .attr("x", 250)    
+     .attr("y", 0)  
+
+    
+
+  }
+}
+
+var key = ["class1", "class2", "class3"];
+initStackedBarChart.draw({
+  data: top5,
+  key: key,
+  element: 'stacked-bar'
+});
+
+   
+
+}
+
+function showcompanies(companies, state_name) {
+
+  company_data = []
+  for (x in companies) {
+    var found = false;
+    for (y in company_data) {
+      if (company_data[y] == companies[x]) {
+        found = true;
+        break;
+      }
+    }
+    if (found == false) {
+      company_data.push(companies[x]) 
+    }
+  }
+  company_data.sort()
+
+var selectList = document.createElement("select");
+selectList.id = state_name + "select";
+selectList.style.width = "95%"
+document.getElementById("company_names").appendChild(selectList);
+
+
+  for (var i = 0; i < company_data.length; i++) {
+    var option = document.createElement("option");
+    option.value = company_data[i];
+    option.text = company_data[i];
+    selectList.appendChild(option);
+  }
+  
+
+
+  var button = document.createElement("button");
+button.innerHTML = "All reasons for recall";
+button.id = state_name + "button";
+button.style.marginTop = "10px";
+button.style.marginRight = "5px";
+button.style.backgroundColor = "#4f6ea2";
+var button1 = document.createElement("button");
+button1.innerHTML = "Class I";
+button1.id = state_name + "button1";
+button1.style.marginTop = "10px";
+button1.style.marginRight = "5px";
+button1.style.backgroundColor = "#a12d1c";
+var button2 = document.createElement("button");
+button2.innerHTML = "Class II";
+button2.id = state_name + "button2";
+button2.style.marginTop = "10px";
+button2.style.marginRight = "5px";
+button2.style.backgroundColor = "#d76050";
+var button3 = document.createElement("button");
+button3.innerHTML = "Class III";
+button3.id = state_name + "button3";
+button3.style.marginTop = "10px";
+button3.style.backgroundColor = "#798ba1";
+
+
+document.getElementById("company_names").appendChild(button);
+document.getElementById("company_names").appendChild(button1);
+document.getElementById("company_names").appendChild(button2);
+document.getElementById("company_names").appendChild(button3);
+
+button.addEventListener ("click", function(event) {
+  var comp = document.getElementById(state_name + "select").value;
+  showreasons(comp, state_name, "all")
+});
+
+button1.addEventListener ("click", function(event) {
+  var comp = document.getElementById(state_name + "select").value;
+  showreasons(comp, state_name, "Class I")
+});
+
+button2.addEventListener ("click", function(event) {
+  var comp = document.getElementById(state_name + "select").value;
+  showreasons(comp, state_name, "Class II")
+});
+
+button3.addEventListener ("click", function(event) {
+  var comp = document.getElementById(state_name + "select").value;
+  showreasons(comp, state_name, "Class III")
+});
+
+  var newdiv = document.createElement("div");
+  newdiv.id = state_name + "reasons"
+  newdiv.style.width = "100%";
+  newdiv.style.height = "215px";
+  newdiv.style.overflow = "scroll";
+  newdiv.style.marginBottom = "5px"
+  document.getElementById("company_names").appendChild(newdiv);
+  
+
+
+}
+
+
+function showreasons(company_name, state_name, class_type) {
+  
+  document.getElementById(state_name + "reasons").innerHTML = ""
+
+  var reasons = []
+  for (x in food.results) {
+    if(food.results[x].recalling_firm == company_name) {
+      var reason_for_recall = food.results[x].reason_for_recall
+      var classification = food.results[x].classification
+      var volun = food.results[x].voluntary_mandated
+      reasons.push({reason: reason_for_recall, classification: classification, vol: volun})
+    }
+  }
+
+
+
+
+  reasonslistvol = []
+  reasonslistunvol = []
+  for (x in reasons) {
+    
+    if (reasons[x].classification == class_type || class_type == "all") {
+      if (reasons[x].vol.toLowerCase() == "voluntary: firm initiated") {
+        reasonslistvol.push(reasons[x].reason)
+      } 
+      else {
+        reasonslistunvol.push(reasons[x].reason)
+      }
+    }
+  }
+
+var para = document.createElement("p");
+    var node = document.createTextNode("Voluntarily recalled");
+
+     para.appendChild(node);
+     para.style.fontWeight = "bold"
+     para.style.textAlign = "center"
+    document.getElementById(state_name + "reasons").appendChild(para);
+
+    
+  if (reasonslistvol.length != 0) {
+      reasonslistvol.sort()
+
+      var diffreasons = [reasonslistvol[0]]
+      for (x in reasonslistvol) {
+          if (reasonslistvol[x] != diffreasons[diffreasons.length - 1]) {
+            diffreasons.push(reasonslistvol[x]); 
+          }
+      }
+      
+      
+      for (x in diffreasons) {
+        var para = document.createElement("p");
+        var node = document.createTextNode(diffreasons[x]);
+        para.appendChild(node);
+
+        document.getElementById(state_name + "reasons").appendChild(para);
+      }
+
+  }
+  else {
+
+    var para = document.createElement("p");
+    var node = document.createTextNode("No recalls in this company with these conditions");
+    para.appendChild(node);
+
+    document.getElementById(state_name + "reasons").appendChild(para);
+  }
+var para2 = document.createElement("p");
+    var node2 = document.createTextNode("FDA Mandated");
+    
+     para2.appendChild(node2);
+     para2.style.fontWeight = "bold"
+     para2.style.textAlign = "center"
+    document.getElementById(state_name + "reasons").appendChild(para2);
+
+  if (reasonslistunvol.length != 0) {
+      reasonslistunvol.sort()
+
+      var diffreasons = [reasonslistunvol[0]]
+      for (x in reasonslistunvol) {
+          if (reasonslistunvol[x] != diffreasons[diffreasons.length - 1]) {
+            diffreasons.push(reasonslistunvol[x]); 
+          }
+      }
+      
+      
+      for (x in diffreasons) {
+        var para = document.createElement("p");
+        var node = document.createTextNode(diffreasons[x]);
+        para.appendChild(node);
+
+        document.getElementById(state_name + "reasons").appendChild(para);
+      }
+
+  }
+  else {
+
+    var para = document.createElement("p");
+    var node = document.createTextNode("No recalls in this company with these conditions");
+    para.appendChild(node);
+
+    document.getElementById(state_name + "reasons").appendChild(para);
+  }
+ 
+}
+
+
+function showclasspie(state_name, class1, class2, class3) {
+    
+  var width = 275                       
+  var height = 275                           
+  var radius = 100   
+  var total_cases = class1 + class2 + class3;       
+  var colorarr = []
+  var data = []
+  if (class1 != 0) {
+     data = [{"label":"Class I", "value":class1}]
+     colorarr.push("#a12d1c")
+  }
+  if (class2 != 0) {
+    data.push({"label":"Class II", "value":class2})
+    colorarr.push("#d76050")
+  }
+  if (class3 != 0) {
+    data.push({"label":"Class III", "value":class3})
+    colorarr.push("#798ba1")
+  }
+  var color = d3.scaleOrdinal(colorarr);
+    
+  var vis = d3.select("#pie")
+              .append("svg:svg")              
+              .data([data])                   
+              .attr("width", width)           
+              .attr("height", height)
+              .append("svg:g")         
+              .attr("transform", "translate(" + width/2 + "," + width/2 + ")") 
+              
+    var tip = d3.tip()
+  .attr('class', 'd3-tip')
+  .offset([-5, 0])
+  .html(function(d) {
+     return d.value + "/" + total_cases;})
+
+  
+
+
+  var arc = d3.arc() 
+              .innerRadius(0)             
+              .outerRadius(radius);
+
+  var pie = d3.pie().value(function(d) { return d.value; }); 
+
+
+  var arcs = vis.selectAll("g.slice")     
+                .data(pie)            
+                .enter()                            
+                .append("svg:g")                
+                .attr("class", "slice");    
+
+  arcs.append("svg:path")
+      .attr("fill", function(d, i) { return color(i); } ) 
+      .attr("d", arc)
+      .on('mouseover', tip.show)
+      .on('mouseout', tip.hide);                                    
+
+  arcs.append("svg:text")                                     
+      .attr("transform", function(d) {                    
+                d.innerRadius = 0;
+                d.outerRadius = radius;
+                return "translate(" + arc.centroid(d) + ")";        
+            })
+      .attr("text-anchor", "middle") 
+      .style("font-family", "Trebuchet MS,Lucida Grande,Lucida Sans Unicode,Lucida Sans,Tahoma,sans-serif")
+      .style("font-size", "13px")                        
+      .text(function(d, i) { return data[i].label + ": " + (data[i].value / total_cases * 100).toFixed(2) + "%"; })
+
+
+  vis.append("text")
+     .text("Proportions of Recall Types in " + state_name)
+     .style("text-anchor", "middle")
+     .style("font-family", "Trebuchet MS,Lucida Grande,Lucida Sans Unicode,Lucida Sans,Tahoma,sans-serif")
+     .style("font-size", "13px")
+     .attr("y", -110);
+     
+  vis.call(tip);      
+
+}
+
+function class1button(event) {
+
+  var class1array = [];
+  for (y in states.features) {
+      class1array[y] = states.features[y].class1
+  }
+ 
+  changemap('#d7e3ed', '#a12d1c', class1array, "class1")
+}
+
+function class2button(event) {
+
+  var class2array = [];
+  for (y in states.features) {
+      class2array[y] = states.features[y].class2
+  }
+ 
+  changemap('#d7e3ed', '#d76050', class2array, "class2")
+}
+
+function class3button(event) {
+
+  var class3array = [];
+  for (y in states.features) {
+      class3array[y] = states.features[y].class3
+  }
+ 
+  changemap('#d7e3ed', '#798ba1', class3array, "class3")
+}
+
+function totalbutton(event) {
+
+  var totalarray = [];
+  for (y in states.features) {
+      totalarray[y] = states.features[y].total
+  }
+ 
+  changemap('#d7e3ed', '#4f6ea2', totalarray, "total")
+}
+
+
+
+function changemap(lowColor, highColor, data_array, class_name) {
+
+  var colormap = d3.scaleLinear()
+                      .domain([d3.min(data_array),d3.max(data_array)])
+                      .range([lowColor,highColor]);
+
+
+  
+
+document.getElementById("map").innerHTML = "";
+document.getElementById("legend").innerHTML = "";
+
+  var mapsvg = d3.select("#map")
+      .append("svg")
+      .attr("width", mapwidth)
+      .attr("height", mapheight);
+
+  var tip = d3.tip()
+  .attr('class', 'd3-tip')
+  .offset([-5, 0])
+  .html(function(d) {
+    if (class_name == "total") {
+        return d.properties.name + ": " + d.total;
+    }
+    else if (class_name == "class1") {
+        return d.properties.name + ": " + d.class1;
+    }
+    else if (class_name == "class2") {
+        return d.properties.name + ": " + d.class2;
+    }
+    else {
+        return d.properties.name + ": " + d.class3;
+    }})
+
+  mapsvg.call(tip);
+
+  mapsvg.selectAll("path")
+      .data(states.features)
+      .enter()
+      .append("path")
+      .attr("d", path)
+      .style("stroke", "#fff")
+      .style("stroke-width", "1")
+      .style("fill", function(d) { 
+        if (class_name == "total") {
+          return colormap(d.total);
+        }
+        else if (class_name == "class1") {
+          return colormap(d.class1);
+        }
+        else if (class_name == "class2") {
+          return colormap(d.class2);
+        }
+        else {
+          return colormap(d.class3);
+        }})
+      .on('mouseover', tip.show)
+      .on('mouseout', tip.hide)
+      .on('click', function(d) { 
+        d3.select(this).transition().duration(300).style("fill", "#1c2f47");
+        if (this.style.fill != "rgb(28, 47, 71)") {
+            return secondvis(d) 
+        }
+        });
+
+  var w = 120, h = 300;
+
+    var key = d3.select("#legend")
+      .append("svg")
+      .attr("width", w)
+      .attr("height", h)
+      .attr("class", "legend");
+
+    var legend = key.append("defs")
+      .append("svg:linearGradient")
+      .attr("id", "gradient")
+      .attr("x1", "100%")
+      .attr("y1", "0%")
+      .attr("x2", "100%")
+      .attr("y2", "100%")
+      .attr("spreadMethod", "pad");
+
+    legend.append("stop")
+      .attr("offset", "0%")
+      .attr("stop-color", highColor)
+      .attr("stop-opacity", 1);
+      
+    legend.append("stop")
+      .attr("offset", "100%")
+      .attr("stop-color", lowColor)
+      .attr("stop-opacity", 1);
+
+    key.append("rect")
+      .attr("width", w - 80)
+      .attr("height", h)
+      .style("fill", "url(#gradient)")
+      .attr("transform", "translate(0,10)");
+
+    var y = d3.scaleLinear()
+      .range([h, 0])
+      .domain([d3.min(data_array), d3.max(data_array)]);
+
+    var yAxis = d3.axisRight(y);
+
+    key.append("g")
+      .attr("class", "y axis")
+      .attr("transform", "translate(41,10)")
+      .call(yAxis)
+}
+
+
+
+</script>
+</body>
+</html>
